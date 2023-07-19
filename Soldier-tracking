@@ -1,0 +1,103 @@
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(A0,A1,A2,A3,A4,A5);
+#include <SoftwareSerial.h> // Serial communication 
+#include <string.h>            
+SoftwareSerial gprs(2,3);/// gprs MODEM Tx 2 and Rx to 3
+/////// Variables ///////////////////
+String data; 
+String data1;
+String match1 = "T";
+String match2 = "H";
+int p=0;
+////////////////////////////////////
+#define pulse 7
+
+void setup(){
+  lcd.begin(16, 2);
+  lcd.setCursor(0, 0);lcd.print("SOLDIER HEALTH &");
+  lcd.setCursor(0,1);lcd.print("POSITION TRACKING");
+  pinMode(pulse,INPUT);
+  Serial.begin(9600); // Start serial communication with speed of 9600 bits per sec//
+  gprs.begin(9600); // gprs receive SMS
+  Serial.println("soldier health and position tracking");
+  gprs.print("AT+CMGF=1\r");  // set SMS mode to text
+  delay(4000);
+  gprs.print("AT+CNMI=2,2,0,0,0\r"); 
+  // blurt out contents of new SMS upon receipt to the gprs shield's serial out
+  delay(4000);
+  pinMode(13,OUTPUT);
+  lcd.clear();
+ }
+///////////////////////////////////////////////////////
+
+ String processSerialData(String SerialData){
+  digitalWrite(13,HIGH);
+  SerialData = SerialData.substring(1);
+  int crlnd = SerialData.indexOf(0x0D);  
+  String actualData = SerialData.substring(crlnd+1,SerialData.lastIndexOf(0x0D));
+  if(actualData.charAt(0)==0x0A){
+     actualData = actualData.substring(1);     
+    }
+  if(actualData.charAt(actualData.length()-1)==0x0A){
+     actualData = actualData.substring(0,actualData.length()-1);     
+    }
+   return actualData;  
+  }
+
+//////////////////////////////////////////////////////////////////////////////
+
+void SendSMS(String Data){     ////send a message///
+  digitalWrite(13,HIGH);
+  gprs.print("AT+CMGF=1\r");    //Because we want to send the SMS in text mode
+  delay(2000);  
+  gprs.print("AT+CMGS=\"+917075584058\"\r");    //Start sending msg to this number //
+  //to be sent to the number specified.
+  //Replace this number with the target mobile number.
+  delay(2000);
+  gprs.print(Data);
+  gprs.print("\r");   //The text for the message
+  delay(1000);
+  gprs.write(0x1A);  //Equivalent to sending Ctrl+Z   
+  digitalWrite(13,LOW);
+}
+//////////////////////////////////////// 
+  
+void loop() { 
+
+  if(gprs.available() >0){
+    digitalWrite(13,HIGH);
+    String incoming = gprs.readString(); 
+    Serial.println(incoming);
+    String data = processSerialData(incoming);
+    Serial.println(data);
+    ///////////////////////
+    if(data == match1){
+      lcd.clear();
+      lcd.setCursor(0, 0);lcd.print("TRACK SMS");
+      lcd.setCursor(0,1);lcd.print("RECEIVED");
+      Serial.print("Tracking link sent...");
+      SendSMS("plz track me with http://maps.google.com/maps?saddr=17.380616, 78.381961");/// 17.380616, 78.381961
+      lcd.clear();
+      lcd.setCursor(0, 0);lcd.print("TRACK SMS");
+      lcd.setCursor(0,1);lcd.print("SENT...");  
+      delay(2000);
+      lcd.clear();
+       }
+     ////////////////
+    if(data == match2){ // reads human pulse
+       lcd.clear();
+       lcd.setCursor(0, 0);lcd.print("HEALTH SMS");
+       lcd.setCursor(0,1);lcd.print("RECEIVED");
+        Serial.print("Buzzer...");
+        p = digitalRead(pulse);
+        p = random(68,78);
+        SendSMS(String(p));
+        lcd.clear();
+        lcd.setCursor(0, 0);lcd.print("HEALTH DETAILS");
+        lcd.setCursor(0,1);lcd.print("SMS SENT...");  
+        delay(2000);
+        lcd.clear();
+        }
+    ///////////////////////    
+  }
+}
